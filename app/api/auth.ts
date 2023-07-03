@@ -33,7 +33,9 @@ export function auth(req: NextRequest) {
   const hashedCode = md5.hash(accessCode ?? "").trim();
 
   const serverConfig = getServerSideConfig();
-  console.log("[Auth] allowed hashed codes: ", [...serverConfig.codes]);
+  const { apiKeys, hasMutipleKeys, apiKey, codes, code } = serverConfig;
+
+  console.log("[Auth] allowed hashed codes: ", [...codes]);
   console.log("[Auth] got access code:", accessCode);
   console.log("[Auth] hashed access code:", hashedCode);
   console.log("[User IP] ", getIP(req));
@@ -46,14 +48,30 @@ export function auth(req: NextRequest) {
     };
   }
 
+  const matchedKeyCode = apiKeys.find((match) => match.code === code);
+  if (serverConfig.hasMutipleKeys && !matchedKeyCode && !token) {
+    return {
+      error: true,
+      msg: !matchedKeyCode ? "empty access code" : "wrong access code",
+    };
+  }
+
   // if user does not provide an api key, inject system api key
   if (!token) {
-    const apiKey = serverConfig.apiKey;
-    if (apiKey) {
-      console.log("[Auth] use system api key");
-      req.headers.set("Authorization", `Bearer ${apiKey}`);
+    if (hasMutipleKeys) {
+      // load the api key is matched with the access code
+      console.log("[Auth] has multiple keys:");
+      console.log("[Auth] use matched api key");
+
+      // @ts-ignore matchedKeyCode is checked in line 51. Typescript is being retarded here.
+      req.headers.set("Authorization", `Bearer ${matchedKeyCode.key}`);
     } else {
-      console.log("[Auth] admin did not provide an api key");
+      if (apiKey) {
+        console.log("[Auth] use system api key");
+        req.headers.set("Authorization", `Bearer ${apiKey}`);
+      } else {
+        console.log("[Auth] admin did not provide an api key");
+      }
     }
   } else {
     console.log("[Auth] use user api key");

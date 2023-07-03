@@ -30,6 +30,40 @@ const ACCESS_CODES = (function getAccessCodes(): Set<string> {
   }
 })();
 
+const OPENAI_API_KEY_MATCHES = (function getAccessCodes(): Array<{
+  key: string;
+  code: string;
+}> {
+  const code = process.env.code;
+  const key = process.env.OPENAI_API_KEY;
+
+  try {
+    const codes = (code?.split(",") ?? [])
+      .filter((v) => !!v)
+      .map((v) => md5.hash(v.trim()));
+    const keys = (code?.split(",") ?? [])
+      .filter((v) => !!v)
+      .map((v) => md5.hash(v.trim()));
+
+    if (
+      keys.length === 0 &&
+      codes.length === 0 &&
+      keys.length !== codes.length
+    ) {
+      throw Error(
+        "[Server Config] Codes and keys are mismatched. Please check your code and key.",
+      );
+    }
+
+    return codes.map((code) => ({
+      code,
+      key: keys[codes.indexOf(code)],
+    }));
+  } catch (e) {
+    return [];
+  }
+})();
+
 export const getServerSideConfig = () => {
   if (typeof process === "undefined") {
     throw Error(
@@ -39,6 +73,8 @@ export const getServerSideConfig = () => {
 
   return {
     apiKey: process.env.OPENAI_API_KEY,
+    apiKeys: OPENAI_API_KEY_MATCHES,
+    hasMutipleKeys: OPENAI_API_KEY_MATCHES.length > 0,
     code: process.env.CODE,
     codes: ACCESS_CODES,
     needCode: ACCESS_CODES.size > 0,
